@@ -1,5 +1,18 @@
 (ns org.timmc.geohash
-  "All dates are Joda Time dates."
+  "A library for calculating coordinates when provided with location,
+local date, and the Dow Jones Industrial Average (DJIA) opening value for the
+appropriate date. You are responsible for retrieving the DJIA data.
+
+For geohahes:
+
+* #'dow-date calculates which date to use for DJIA data (30W compliant)
+* #'geohash calculates the local geohash coordinates
+
+Similarly, #'globalhash-dow-date and #'globalhash are available for
+calculating globalhashes.
+
+All dates are Joda Time LocalDate objects. Input latitude and longitude
+as floating-point numbers to preserve negative zero. (Enforced.)"
   (:import (java.math BigDecimal)
            (org.joda.time LocalDate)
            (org.joda.time.format DateTimeFormat)))
@@ -9,17 +22,24 @@
   (LocalDate. 2008 5 27))
 
 (defn dow-date
-  "Derive the DJIA source date, for a given location and hashing date."
+  "Derive the DJIA source date, for a given location and geohashing date.
+Also see #'globalhash-dow-date."
   [lat lon ^LocalDate date]
   (if (and (> (int lon) -30) ;; "locations east of latitude 30W"
            (<= 0 (.compareTo date first-day-of-30W)))
     (.minusDays date 1)
     date))
 
-(def date-formatter
+(defn globalhash-dow-date
+  "Just returns the previous day's date.
+Also see #'dow-date for normal geohashes."
+  [^LocalDate date]
+  (.minusDats date 1))
+
+(def ^:internal date-formatter
   (DateTimeFormat/forPattern "yyyy-MM-dd"))
 
-(def hex-vals
+(def ^:internal hex-vals
   {\0 0 \1 1 \2 2 \3 3 \4 4 \5 5 \6 6 \7 7 \8 8 \9 9
    \a 10 \b 11 \c 12 \d 13 \e 14 \f 15})
 
@@ -48,17 +68,33 @@
   [bs]
   (apply str (map #(format "%02x" %) bs)))
 
-(defn coordinates
-  "Compute coordinates from location, date, and opening DJIA.
+(defn fractional
+  "Produce fractional coordinates. Output is [lat lon] as floating point,
+each in the interval [0,1)."
+  [^LocalDate date ^String djia]
+  {:pre [(cast LocalDate date), (cast String djia)]}
+  (let [hash-str (hexify (hash-data date djia))
+        mk-coord #(.doubleValue (hex-to-fractional %))]
+    [(mk-coord (.substring hash-str 0 16))
+     (mk-coord (.substring hash-str 16))]))
+
+(defn geohash
+  "Compute geohash coordinates from location, date, and opening DJIA.
 Input coordinates must be floating-point so as to preserve negative zero.
 Output is [lat, lon] as floating point."
-  [lat lon ^LocalDate date ^String djia]
-  {:pre [(float? lat) (float? lon) (cast LocalDate date), (cast String djia)]}
-  (let [hash-bytes (hash-data date djia)
-        hash-str (hexify hash-bytes)
-        mk-coord (fn [given hex]
-                   (* (Math/signum given)
-                      (+ (int (Math/abs given))
-                         (.doubleValue (hex-to-fractional hex)))))]
-    [(mk-coord lat (.substring hash-str 0 16))
-     (mk-coord lon (.substring hash-str 16))]))
+  [lat lon date djia]
+  {:pre [(float? lat) (float? lon)]}
+  (letfn [(mk-coord [given frac]
+            (* (Math/signum given)
+               (+ (int (Math/abs given))
+                  frac)))]
+    (vec (map mk-coord [lat lon] (fractional date djia)))))
+
+(defn globalhash
+  "Compute globalhash coordinates from the date and appropriate DJIA.
+Use #'globalhash-dow-date to compute the DJIA source date.
+Output is [lat, lon] as floating point."
+  [date djia]
+  (let [[latf lonf] (fractional date djia)]
+    [(- (* 180 latf) 90)
+     (- (* 360 lonf) 180)]))
