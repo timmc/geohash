@@ -1,4 +1,4 @@
-(defproject org.timmc/geohash "1.0.0-SNAPSHOT"
+(defproject org.timmc/geohash "1.0.0"
   :description "Clojure library for computing geohashes"
   :url "https://github.com/timmc/geohash"
   :license {:name "Eclipse Public License"
