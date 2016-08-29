@@ -3,7 +3,7 @@
 local date, and the Dow Jones Industrial Average (DJIA) opening value for the
 appropriate date. You are responsible for retrieving the DJIA data.
 
-For geohahes:
+For geohashes:
 
 * #'dow-date calculates which date to use for DJIA data (30W compliant)
 * #'geohash calculates the local geohash coordinates
